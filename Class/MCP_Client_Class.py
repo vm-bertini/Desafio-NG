@@ -5,8 +5,8 @@ from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-
-from anthropic import Anthropic
+import json
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()  # load environment variables from .env
@@ -16,7 +16,7 @@ class MCPClient:
         # Initialize session and client objects
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
-        self.anthropic = Anthropic()
+        self.llm = OpenAI()
 
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP server
@@ -47,71 +47,59 @@ class MCPClient:
         tools = response.tools
         print("\nConnected to server with tools:", [tool.name for tool in tools])
 
-    async def process_query(self, query: str) -> str:
+        #List available resources
+        response = await self.session.list_resources()
+        resources = response.resources
+        print("\nAvailable resources:", [resource.name for resource in resources])
+
+    async def process_query(self, messages: str) -> str:
         """Process a query using Claude and available tools"""
-        messages = [
-            {
-                "role": "user",
-                "content": query
-            }
-        ]
 
         response = await self.session.list_tools()
-        available_tools = [{ 
-            "name": tool.name,
-            "description": tool.description,
-            "input_schema": tool.inputSchema
-        } for tool in response.tools]
-
-        # Initial Claude API call
-        response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=1000,
-            messages=messages,
-            tools=available_tools
-        )
-
-        # Process response and handle tool calls
-        final_text = []
-
-        for content in response.content:
-            if content.type == 'text':
-                final_text.append(content.text)
-            elif content.type == 'tool_use':
-                tool_name = content.name
-                tool_args = content.input
+        available_tools = [{
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.inputSchema
+            }} for tool in response.tools]
+        
+        while True:
+            response = self.llm.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                tools=available_tools,
+                tool_choice="auto"
+            )
+            
+            msg = response.choices[0].message
+            
+            
+            if msg.tool_calls:
+                tool_call = msg.tool_calls[0]
+                func_name = tool_call.function.name
+                args = json.loads(tool_call.function.arguments)
                 
-                # Execute tool call
-                result = await self.session.call_tool(tool_name, tool_args)
-                final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
-
-                # Continue conversation with tool results
-                if hasattr(content, 'text') and content.text:
-                    messages.append({
-                      "role": "assistant",
-                      "content": content.text
-                    })
+                result = (await self.session.call_tool(func_name, args)).content[0].text
+                
+                messages.append({"role": "assistant", "tool_calls": [tool_call]})
                 messages.append({
-                    "role": "user", 
-                    "content": result.content
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result
                 })
-
-                # Get next response from Claude
-                response = self.anthropic.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
-                    messages=messages,
-                )
-
-                final_text.append(response.content[0].text)
-
-        return "\n".join(final_text)
+                continue
+            else:
+                # No more tool calls → model has responded
+                messages.append(msg)
+                break
+        return messages[len(messages)-1].content
 
     async def chat_loop(self):
         """Run an interactive chat loop"""
         print("\nMCP Client Started!")
         print("Type your queries or 'quit' to exit.")
-        
+        messages = []
         while True:
             try:
                 query = input("\nQuery: ").strip()
@@ -119,7 +107,14 @@ class MCPClient:
                 if query.lower() == 'quit':
                     break
                     
-                response = await self.process_query(query)
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": query
+                    }
+                )
+
+                response = await self.process_query(messages)
                 print("\n" + response)
                     
             except Exception as e:

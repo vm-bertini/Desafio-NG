@@ -1,6 +1,12 @@
 from mcp.server.fastmcp import FastMCP
 import torch
 from SOM.SOM import SOM   
+import os
+from Functions.Read_TSP import read_tsp
+import numpy as np
+import base64
+import io
+import matplotlib.pyplot as plt
 
 class MCPServer(FastMCP):
     def __init__(self, name = "MCP Server"):
@@ -14,14 +20,17 @@ class MCPServer(FastMCP):
 server = MCPServer(name="Servidor stdio MCP")
     
 @server.tool()
-async def Process_Map(map, circular: bool = True):
+async def Process_Map(map:list, circular: bool = True):
     """ Process a map using Self-Organizing Map (SOM) algorithm.
     Args:
-        map (torch.Tensor): Input map as a tensor.
-        circular (bool): Whether the SOM is circular (used for tsp solutions). Defaults to True."""
+        map (list): Input map as a serialized tensor (list of lists).
+        circular (bool): Whether the SOM is circular (used for tsp solutions). Defaults to True.
+    Returns:
+        List (list): A tensor, list of lists containing the final positions from the TSP file."""
 
+    map = torch.tensor(map, dtype=torch.float32)  # Ensure the input is a tensor
     #Checking if the map is empty:
-    if not map:
+    if map.numel() == 0:
         return "Map is empty. Please provide a valid map."
     #Checking if the map is a tensor:
     if not isinstance(map, torch.Tensor):
@@ -32,11 +41,63 @@ async def Process_Map(map, circular: bool = True):
     dim_1 = map.shape[0]*3
     dim_2 = 1
     #Creating SOM instance:
-    som = SOM(dim_1, dim_2, circular, input_dim=input_dim)
+    som = SOM(dim_1, dim_2, input_dim, circular)
 
     #Training SOM:
     som.train_som(map, epochs=300)
     #Getting the final weights:
     final_weights = som.forward(map)
     #Returning the final weights:
-    return final_weights.tolist()  # Convert to list for JSON serialization
+    return {"final_weights": final_weights.tolist()} # Convert to list for JSON serialization
+
+@server.tool()
+def Load_TSP_File(file_name: str = "", file_id: int = None):
+    """Load a TSP file from the Local_TSP folder and create a tensor with positions.
+    Args:
+        file_name (str): The name of the TSP file to load. Takes priority if provided.
+        file_id (int): The index of the TSP file in the folder, used if file_name is not provided. 
+        If no tsp is offered set this value to random.
+    Returns:
+        List (list): A tensor, list of lists containing the positions from the TSP file.
+    """
+    tsp_folder = "./Local_TSP"
+    file_path = os.path.join(tsp_folder, file_name)
+
+    # Load the TSP file and convert it to a tensor
+    tensor = read_tsp(file_path)
+
+    # Serialize the tensor to a list for JSON compatibility
+    return {"tensor": tensor.tolist()}
+
+@server.tool()
+def gen_cities(n_cities:int):
+    """Generate a list of cities with random coordinates.
+    Args:
+        n_cities (int): Number of cities to generate.
+    Returns:
+        obj (object): Contains a list of tuples with city coordinates."""
+    cities = []
+    for i in range(n_cities):
+        rand = np.random.normal(0,1)
+        cities.append((np.random.uniform(-1, 1)+rand*0.1, np.random.uniform(-1, 1)+rand*0.1))
+    return {"Cities": cities}
+
+
+@server.tool()
+def graph_cities(cities:list, file_name: str = "cities_graph.png"):
+
+    folder = "./PNGs/"
+    # Ensure the folder exists
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    x, y = zip(*cities)
+    plt.scatter(x, y)
+    plt.title('Cities')
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    plt.grid()
+    # Check if a file with the same name already exists and delete it
+    if os.path.exists(folder+file_name):
+        os.remove(folder+file_name)
+    plt.savefig(folder+file_name)
+    return "Graph saved as"+ file_name
