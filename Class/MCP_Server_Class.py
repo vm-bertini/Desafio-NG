@@ -84,8 +84,9 @@ def gen_cities(n_cities:int):
 
 
 @server.tool()
-def graph_cities(cities:list, file_name: str = "cities_graph.png"):
-
+def graph_cities(cities:list, file_name: str = "cities_graph.png", circular: bool = False):
+    """Graph a single cities list
+    circular should be set to true if the cities data is part of the solution"""
     folder = "./PNGs/"
     # Ensure the folder exists
     if not os.path.exists(folder):
@@ -96,8 +97,41 @@ def graph_cities(cities:list, file_name: str = "cities_graph.png"):
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
     plt.grid()
+
+    if circular:
+        plt.plot(x + (x[0],), y + (y[0],), linestyle='-', color='orange' if circular else 'blue')
     # Check if a file with the same name already exists and delete it
     if os.path.exists(folder+file_name):
         os.remove(folder+file_name)
     plt.savefig(folder+file_name)
+    plt.close()
     return "Graph saved as"+ file_name
+
+@server.tool()
+def graph_mult_cities(cities_obj: object, file_name: str = "cities_graph.png", circular: list[bool] = None):
+    """Graph multiple cities lists.
+    
+    The first list value is the cities and the second one is the SOM weights.
+    'circular' should be a list of booleans, one for each cities set.
+    """
+    folder = "./PNGs/"
+    # Ensure the folder exists
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    if circular is None:
+        circular = [False] * len(cities_obj)
+    for i, cities in enumerate(cities_obj.values()):
+        x, y = zip(*cities)
+        plt.scatter(x, y)
+        plt.title(f'Cities {i+1}')
+        plt.xlabel('X Coordinate')
+        plt.ylabel('Y Coordinate')
+        plt.grid()
+        if circular[i]:
+            plt.plot(x + (x[0],), y + (y[0],), linestyle='-', color='red')
+    # Check if a file with the same name already exists and delete it
+    if os.path.exists(folder + file_name):
+        os.remove(folder + file_name)
+    plt.savefig(folder + file_name)
+    plt.close()
+    return "Graph saved as " + file_name
