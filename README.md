@@ -111,18 +111,6 @@ This project demonstrates an innovative approach to solving TSP problems by leve
    Query: Show me a graph of the cities and solution
    ```
 
-### Manual Server/Client Setup
-
-1. **Start MCP Server** (in one terminal)
-   ```bash
-   python Server.py
-   ```
-
-2. **Connect Client** (in another terminal)
-   ```bash
-   python -c "import asyncio; from Class.MCP_Client_Class import main; asyncio.run(main('./Server.py'))"
-   ```
-
 ## Project Structure
 
 ```
@@ -151,49 +139,6 @@ NG/
     ├── cities_graph.png      # City distribution plots
     ├── tsp_solution.png      # Solution visualizations
     └── ...
-```
-
-## How It Works
-
-1. **Initialization**: The MCP client connects to the server and discovers available tools
-2. **User Interaction**: Users input natural language queries about TSP problems
-3. **GPT Processing**: OpenAI GPT-4 interprets requests and selects appropriate tools
-4. **Tool Execution**: MCP server executes SOM algorithms, file loading, or visualization
-5. **Result Integration**: Results are processed and presented back to the user
-6. **Iterative Solving**: Users can refine solutions through continued conversation
-
-## Technical Details
-
-### SOM Algorithm
-- **Topology**: 1D or 2D grid with optional circular connections
-- **Training**: Competitive learning with exponential decay
-- **Optimization**: Minimizes tour length through neural adaptation
-- **Output**: Ordered sequence of cities forming optimal tour
-
-### MCP Communication
-- **Transport**: Stdio-based communication protocol
-- **Serialization**: JSON for all data exchange
-- **Tools**: Function-based interface with schema validation
-- **Session Management**: Persistent connections with proper cleanup
-
-## Examples
-
-### Solving Berlin52 TSP
-```
-Query: Load berlin52.tsp and solve it with SOM
-Response: Loaded 52 cities from Berlin. SOM found tour with length 7544.37
-```
-
-### Custom City Generation
-```
-Query: Create 30 random cities and visualize them
-Response: Generated 30 cities. Graph saved as cities_graph.png
-```
-
-### Interactive Optimization
-```
-Query: Use circular SOM topology for better results
-Response: Applied circular SOM. Tour improved to length 7312.85
 ```
 
 ## Dependencies
