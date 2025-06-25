@@ -61,13 +61,26 @@ def Load_TSP_File(file_name: str = "", file_id: int = None):
         List (list): A tensor, list of lists containing the positions from the TSP file.
     """
     tsp_folder = "./Local_TSP"
+
+    # If file_name is empty, try to get file by file_id
+    if not file_name:
+        if file_id is None:
+            return {"error": "No file_name or file_id provided."}
+        # List all .tsp files in the folder
+        files = [f for f in os.listdir(tsp_folder) if f.lower().endswith('.tsp')]
+        if not files:
+            return {"error": "No TSP files found in the folder."}
+        if file_id < 0 or file_id >= len(files):
+            return {"error": f"file_id {file_id} is out of range. Found {len(files)} files."}
+        file_name = files[file_id]
+
     file_path = os.path.join(tsp_folder, file_name)
 
     # Load the TSP file and convert it to a tensor
     tensor = read_tsp(file_path)
 
     # Serialize the tensor to a list for JSON compatibility
-    return {"tensor": tensor.tolist()}
+    return {"tensor": tensor.tolist(), "Name": file_name}
 
 @server.tool()
 def gen_cities(n_cities:int):
