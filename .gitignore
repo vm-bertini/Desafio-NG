@@ -1,1 +1,5 @@
 .venv
+.env
+_pycache
+__pycache__
+PNGs
